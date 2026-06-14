@@ -1,10 +1,16 @@
+using System.ComponentModel.DataAnnotations;
 using KittyTask.Api.Domain;
 
 namespace KittyTask.Api.Dtos;
 
 // ----- Auth -----
-public record RegisterDto(string Name, string Email, string Password);
-public record LoginDto(string Email, string Password);
+public record RegisterDto(
+    [Required(ErrorMessage = "Name is required."), StringLength(60, MinimumLength = 1)] string Name,
+    [Required(ErrorMessage = "Email is required."), EmailAddress(ErrorMessage = "Enter a valid email address.")] string Email,
+    [Required(ErrorMessage = "Password is required."), MinLength(6, ErrorMessage = "Password must be at least 6 characters.")] string Password);
+public record LoginDto(
+    [Required, EmailAddress] string Email,
+    [Required] string Password);
 public record AuthResponseDto(string Token, UserDto User);
 
 // ----- Users -----
@@ -15,7 +21,9 @@ public record UserDto(string Id, string Name, string Email, string AvatarColor, 
 }
 
 // ----- Boards -----
-public record CreateBoardDto(string Title, string Background, string BackgroundImage, BoardVisibility Visibility);
+public record CreateBoardDto(
+    [Required(ErrorMessage = "Board title is required."), StringLength(120, MinimumLength = 1)] string Title,
+    string Background, string BackgroundImage, BoardVisibility Visibility);
 public record UpdateBoardDto(string? Title, BoardVisibility? Visibility, string? Background, string? BackgroundImage);
 
 public record BoardDto(
@@ -49,10 +57,10 @@ public record BoardDetailDto(
 }
 
 // ----- Members -----
-public record AddMemberDto(string Email);
+public record AddMemberDto([Required, EmailAddress(ErrorMessage = "Enter a valid email address.")] string Email);
 
 // ----- Lists -----
-public record CreateListDto(string Title);
+public record CreateListDto([Required(ErrorMessage = "List title is required."), StringLength(120, MinimumLength = 1)] string Title);
 public record UpdateListDto(string Title);
 public record ReorderDto(List<string> OrderedIds);
 
@@ -73,3 +81,14 @@ public record CardDto(string Id, string ListId, string Title, int Order, string 
 {
     public static CardDto From(Card c) => new(c.Id, c.ListId, c.Title, c.Order, c.Background, c.Labels);
 }
+
+public record ArchivedCardDto(
+    string Id,
+    string Title,
+    string Background,
+    bool[] Labels,
+    string ListId,
+    string ListTitle,
+    string BoardId,
+    string BoardTitle,
+    DateTime? ArchivedAt);

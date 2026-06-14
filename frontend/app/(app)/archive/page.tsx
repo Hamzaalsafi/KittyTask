@@ -1,47 +1,86 @@
 "use client";
 
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
+import { useToast } from "@/lib/toast";
+import type { ArchivedCard } from "@/lib/types";
 
 export default function ArchivePage() {
   const { user } = useAuth();
+  const toast = useToast();
+  const queryClient = useQueryClient();
 
-  const avatarColor = user?.avatarColor || "#111827";
-  const avatarInitials = user?.avatarInitials || "A";
-  const userName = user?.name || "Guest";
-  const userEmail = user?.email || "example@example.com";
+  const { data: cards = [], isLoading } = useQuery({
+    queryKey: ["archived-cards"],
+    queryFn: () => api.cards.archived(),
+    enabled: !!user,
+  });
+
+  const restore = useMutation({
+    mutationFn: (id: string) => api.cards.restore(id),
+    onSuccess: () => {
+      toast.success("Card restored to its board.");
+      queryClient.invalidateQueries({ queryKey: ["archived-cards"] });
+    },
+    onError: () => toast.error("Couldn't restore the card."),
+  });
+
+  const remove = useMutation({
+    mutationFn: (id: string) => api.cards.remove(id),
+    onSuccess: () => {
+      toast.success("Card permanently deleted.");
+      queryClient.invalidateQueries({ queryKey: ["archived-cards"] });
+    },
+    onError: () => toast.error("Couldn't delete the card."),
+  });
 
   return (
-    <div className="flex bg-zinc-800 w-screen h-screen pt-20 pb-10 justify-center text-gray-300">
-      <div className="w-screen relative max-w-[1000px] rounded-lg pt-2 px-2 sm:p-7 bg-zinc-800 shadow-xl">
-        <span className="CardsArchive">Cards Archive</span>
-        <div className="flex mr-2 mt-[7em] hover:opacity-85 cursor-pointer w-fit">
-          <div className="flex hover:opacity-85 cursor-pointer justify-center items-center">
-            <div
-              className="pointer-events-none mr-2 select-none mb-1"
-              style={{
-                backgroundColor: avatarColor,
-                color: "rgb(39, 39, 42)",
-                width: "43px",
-                height: "43px",
-                borderRadius: "50%",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                fontWeight: "bold",
-                fontSize: "20px",
-                border: "1px solid #555",
-              }}
-            >
-              {avatarInitials.toUpperCase()}
-            </div>
+    <div className="min-h-screen bg-zinc-900 px-4 pt-20 pb-12 sm:px-8">
+      <div className="mx-auto max-w-3xl">
+        <h1 className="mb-1 text-2xl font-bold text-slate-100">Cards Archive</h1>
+        <p className="mb-6 text-sm text-slate-400">
+          Archived cards are hidden from their boards but kept here. Restore them anytime, or delete them for good.
+        </p>
+
+        {isLoading ? (
+          <p className="text-slate-400">Loading…</p>
+        ) : cards.length === 0 ? (
+          <div className="flex flex-col items-center rounded-2xl border border-zinc-800 bg-zinc-800/40 px-6 py-16 text-center">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/cat2.svg" alt="" className="mb-4 w-24 opacity-90" />
+            <h2 className="mb-1 text-lg font-bold text-slate-100">Nothing archived</h2>
+            <p className="max-w-sm text-sm text-slate-400">
+              When you archive a card from a board (card menu → Archive), it will show up here.
+            </p>
           </div>
-          <div>
-            <p className="text-xl mb-[-4px]">{userName}</p>
-            <p className="text-md opacity-90">{userEmail}</p>
-          </div>
-        </div>
-        <hr className="w-full mt-2 border-0 border-b border-gray-400 border-opacity-75" />
-        <div className="flex w-full h-[30vh] text-3xl justify-center items-center">Come in the future! :)</div>
+        ) : (
+          <ul className="flex flex-col gap-3">
+            {cards.map((c: ArchivedCard) => (
+              <li key={c.id} className="flex items-center gap-3 rounded-lg border border-zinc-800 bg-zinc-800/60 p-3">
+                <div className={`h-10 w-1.5 shrink-0 rounded-full ${c.background || "bg-gray-700"}`} />
+                <div className="min-w-0 flex-1">
+                  <p className="truncate font-medium text-slate-100">{c.title || "Empty Card"}</p>
+                  <p className="truncate text-xs text-slate-500">
+                    {c.boardTitle} · {c.listTitle}
+                  </p>
+                </div>
+                <button
+                  onClick={() => restore.mutate(c.id)}
+                  className="rounded-md bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-700"
+                >
+                  Restore
+                </button>
+                <button
+                  onClick={() => remove.mutate(c.id)}
+                  className="rounded-md bg-zinc-700 px-3 py-1.5 text-sm font-medium text-slate-200 hover:bg-red-700"
+                >
+                  Delete
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
       </div>
     </div>
   );

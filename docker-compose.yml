@@ -21,7 +21,16 @@ services:
       ConnectionStrings__Default: "Host=postgres;Port=5432;Database=${POSTGRES_DB:-kittytask};Username=${POSTGRES_USER:-postgres};Password=${POSTGRES_PASSWORD:-postgres}"
       Jwt__Secret: ${JWT_SECRET:-dev-only-insecure-secret-change-me-in-production-please-32+chars}
       Cors__Origins: ${APP_ORIGIN:-http://localhost:8080}
+      DataProtection__KeysPath: /keys
       ASPNETCORE_ENVIRONMENT: Production
+    volumes:
+      - dpkeys:/keys
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8080/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 40s
     depends_on:
       postgres:
         condition: service_healthy
@@ -33,6 +42,12 @@ services:
         # Same-origin through the proxy, so the public base URL is empty.
         NEXT_PUBLIC_API_BASE_URL: ""
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:3000/"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
     depends_on:
       - backend
 
@@ -51,3 +66,4 @@ services:
 volumes:
   pgdata:
   caddydata:
+  dpkeys:

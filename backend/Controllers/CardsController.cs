@@ -38,7 +38,7 @@ public class CardsController : ControllerBase
         if (boardId is null) return NotFound();
         if (!await _access.IsMember(boardId, UserId)) return Forbid();
 
-        var count = await _db.Cards.CountAsync(c => c.ListId == listId);
+        var count = await _db.Cards.CountAsync(c => c.ListId == listId && !c.IsArchived);
         var card = new Card { ListId = listId, Title = dto.Title, Order = count };
         _db.Cards.Add(card);
         await _db.SaveChangesAsync();
@@ -46,6 +46,59 @@ public class CardsController : ControllerBase
         var result = CardDto.From(card);
         await Broadcast(boardId, "CardCreated", result);
         return result;
+    }
+
+    // Archive a card: hide it from the board but keep it for the archive view.
+    [HttpPost("cards/{id}/archive")]
+    public async Task<IActionResult> Archive(string id)
+    {
+        var card = await _db.Cards.FindAsync(id);
+        if (card is null) return NotFound();
+        var boardId = await _access.BoardIdForCard(id);
+        if (boardId is null || !await _access.IsMember(boardId, UserId)) return Forbid();
+
+        card.IsArchived = true;
+        card.ArchivedAt = DateTime.UtcNow;
+        await _db.SaveChangesAsync();
+
+        await Broadcast(boardId, "CardDeleted", new { boardId, listId = card.ListId, cardId = id });
+        return NoContent();
+    }
+
+    // Restore an archived card back onto its list.
+    [HttpPost("cards/{id}/restore")]
+    public async Task<ActionResult<CardDto>> Restore(string id)
+    {
+        var card = await _db.Cards.FindAsync(id);
+        if (card is null) return NotFound();
+        var boardId = await _access.BoardIdForCard(id);
+        if (boardId is null || !await _access.IsMember(boardId, UserId)) return Forbid();
+
+        card.IsArchived = false;
+        card.ArchivedAt = null;
+        card.Order = await _db.Cards.CountAsync(c => c.ListId == card.ListId && !c.IsArchived);
+        await _db.SaveChangesAsync();
+
+        var result = CardDto.From(card);
+        await Broadcast(boardId, "CardCreated", result);
+        return result;
+    }
+
+    // All archived cards across boards the current user belongs to.
+    [HttpGet("cards/archived")]
+    public async Task<ActionResult<List<ArchivedCardDto>>> Archived()
+    {
+        var cards = await _db.Cards
+            .Where(c => c.IsArchived && c.List!.Board!.Members.Any(m => m.UserId == UserId))
+            .Include(c => c.List!).ThenInclude(l => l.Board!)
+            .OrderByDescending(c => c.ArchivedAt)
+            .ToListAsync();
+
+        return cards.Select(c => new ArchivedCardDto(
+            c.Id, c.Title, c.Background, c.Labels,
+            c.ListId, c.List!.Title,
+            c.List.BoardId, c.List.Board!.Title,
+            c.ArchivedAt)).ToList();
     }
 
     [HttpPatch("cards/{id}")]
@@ -115,7 +168,7 @@ public class CardsController : ControllerBase
 
         var fromListId = card.ListId;
         card.ListId = dto.TargetListId;
-        card.Order = dto.NewOrder ?? await _db.Cards.CountAsync(c => c.ListId == dto.TargetListId);
+        card.Order = dto.NewOrder ?? await _db.Cards.CountAsync(c => c.ListId == dto.TargetListId && !c.IsArchived);
         await _db.SaveChangesAsync();
 
         var result = CardDto.From(card);
@@ -137,7 +190,7 @@ public class CardsController : ControllerBase
         if (targetBoardId is null) return NotFound(new { message = "Target list not found." });
         if (!await _access.IsMember(targetBoardId, UserId)) return Forbid();
 
-        var count = await _db.Cards.CountAsync(c => c.ListId == dto.TargetListId);
+        var count = await _db.Cards.CountAsync(c => c.ListId == dto.TargetListId && !c.IsArchived);
         var copy = new Card
         {
             ListId = dto.TargetListId,

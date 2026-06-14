@@ -1,5 +1,5 @@
 import { getToken } from "./token";
-import type { AuthResponse, Board, BoardDetail, Card, List, User, Visibility } from "./types";
+import type { ArchivedCard, AuthResponse, Board, BoardDetail, Card, List, User, Visibility } from "./types";
 
 export const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:5043";
 
@@ -85,5 +85,8 @@ export const api = {
       request<Card>(`/cards/${id}/move`, { method: "POST", body: body({ targetListId, newOrder }) }),
     copy: (sourceCardId: string, targetListId: string) =>
       request<Card>("/cards/copy", { method: "POST", body: body({ sourceCardId, targetListId }) }),
+    archive: (id: string) => request<void>(`/cards/${id}/archive`, { method: "POST" }),
+    restore: (id: string) => request<Card>(`/cards/${id}/restore`, { method: "POST" }),
+    archived: () => request<ArchivedCard[]>("/cards/archived"),
   },
 };

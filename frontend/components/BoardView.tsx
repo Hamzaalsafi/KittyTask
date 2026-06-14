@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -79,6 +79,11 @@ export function BoardView({ boardId }: { boardId: string }) {
     };
   }, [boardId]);
 
+  // Refetch the whole board (used to reconcile after a realtime reconnect).
+  const refetchBoard = useCallback(() => {
+    api.boards.get(boardId).then(setBoard).catch(() => {});
+  }, [boardId]);
+
   // Realtime: merge incoming events into the board tree.
   useBoardRealtime(board ? boardId : undefined, {
     ListCreated: (p) => setBoard((b) => (b ? bs.upsertList(b, p as List) : b)),
@@ -92,7 +97,7 @@ export function BoardView({ boardId }: { boardId: string }) {
     CardMoved: (p) => setBoard((b) => { const d = p as { fromListId: string; card: Card }; return b ? bs.moveCard(b, d.fromListId, d.card) : b; }),
     BoardUpdated: (p) => setBoard((b) => { const d = p as Board; return b ? { ...b, title: d.title, background: d.background, backgroundImage: d.backgroundImage, visibility: d.visibility, members: d.members } : b; }),
     BoardDeleted: () => router.push("/home"),
-  });
+  }, refetchBoard);
 
   // Outside-click handlers.
   useEffect(() => {
@@ -220,7 +225,7 @@ export function BoardView({ boardId }: { boardId: string }) {
             <div className="flex gap-5">
               <p className="text-white font-bold text-2xl cursor-pointer">{board.title}</p>
               <div className="relative inline-block text-left">
-                <button onClick={() => setIsOpen((v) => !v)} className="sm:text-lg text-slate-100 text-md px-1.5 mt-1 sm:mt-0.5 flex gap-1 hover:text-gray-900 rounded-md hover:bg-slate-100 items-center">
+                <button title="Change who can see this board (private or shareable)" onClick={() => setIsOpen((v) => !v)} className="sm:text-lg text-slate-100 text-md px-1.5 mt-1 sm:mt-0.5 flex gap-1 hover:text-gray-900 rounded-md hover:bg-slate-100 items-center">
                   <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor" className="w-5 h-5">
                     <path strokeLinecap="round" strokeLinejoin="round" d="M15 19.128a9.38 9.38 0 0 0 2.625.372 9.337 9.337 0 0 0 4.121-.952 4.125 4.125 0 0 0-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 0 1 8.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0 1 11.964-3.07M12 6.375a3.375 3.375 0 1 1-6.75 0 3.375 3.375 0 0 1 6.75 0Zm8.25 2.25a2.625 2.625 0 1 1-5.25 0 2.625 2.625 0 0 1 5.25 0Z" />
                   </svg>
@@ -229,13 +234,13 @@ export function BoardView({ boardId }: { boardId: string }) {
               </div>
             </div>
             <div className="flex items-center gap-2">
-              <div onClick={() => setIsShareOpen((v) => !v)} className="bg-slate-100 text-zinc-950 flex items-center gap-1 px-1.5 rounded-md hover:bg-slate-200 cursor-pointer">
+              <div title="Share this board with teammates by email" onClick={() => setIsShareOpen((v) => !v)} className="bg-slate-100 text-zinc-950 flex items-center gap-1 px-1.5 rounded-md hover:bg-slate-200 cursor-pointer">
                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="1.4" stroke="currentColor" className="w-5 h-5">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M18 7.5v3m0 0v3m0-3h3m-3 0h-3m-2.25-4.125a3.375 3.375 0 1 1-6.75 0 3.375 3.375 0 0 1 6.75 0ZM3 19.235v-.11a6.375 6.375 0 0 1 12.75 0v.109A12.318 12.318 0 0 1 9.374 21c-2.331 0-4.512-.645-6.374-1.766Z" />
                 </svg>
                 Share
               </div>
-              <button onClick={() => setBoardMenu((v) => !v)} className="text-zinc-100 flex items-center ml-2 rounded-md hover:text-zinc-300 cursor-pointer">
+              <button title="Board menu: rename, change background, delete" onClick={() => setBoardMenu((v) => !v)} className="text-zinc-100 flex items-center ml-2 rounded-md hover:text-zinc-300 cursor-pointer">
                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor" className="size-7">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M6.75 12a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0ZM12.75 12a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0ZM18.75 12a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0Z" />
                 </svg>
@@ -330,7 +335,16 @@ export function BoardView({ boardId }: { boardId: string }) {
             </SortableContext>
           </DndContext>
 
-          {!createList && (
+          {!createList && board.lists.length === 0 && (
+            <div className="btn self-start rounded-xl border border-dashed border-white/30 bg-black/40 p-5 text-zinc-100">
+              <p className="mb-1 font-semibold">This board is empty 🐱</p>
+              <p className="mb-3 text-sm text-zinc-300">Add your first list — try <b>To&nbsp;Do</b>, <b>Doing</b>, and <b>Done</b>.</p>
+              <button onClick={(e) => { e.stopPropagation(); setIsDragging(false); setCreateList(true); }} className="rounded-md bg-pink-500 px-4 py-1.5 font-medium text-white hover:bg-pink-600">
+                ＋ Add a list
+              </button>
+            </div>
+          )}
+          {!createList && board.lists.length > 0 && (
             <button onClick={(e) => { e.stopPropagation(); setIsDragging(false); setCreateList(true); }} className="btn p-4 text-md py-2.5 rounded-lg bg-zinc-800 bg-opacity-50 text-left text-zinc-50 self-start mt-1">
               + Add another list
             </button>

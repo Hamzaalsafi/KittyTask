@@ -5,6 +5,23 @@ import { useRouter } from "next/navigation";
 import { ThreeDot } from "react-loading-indicators";
 import { useAuth } from "@/lib/auth";
 
+function PasswordChecklist({ password }: { password: string }) {
+  const rules = [
+    { label: "At least 6 characters", ok: password.length >= 6 },
+    { label: "A lowercase letter", ok: /[a-z]/.test(password) },
+    { label: "A number", ok: /[0-9]/.test(password) },
+  ];
+  return (
+    <ul className="mb-1 w-72 space-y-0.5 px-2 text-left text-xs">
+      {rules.map((r) => (
+        <li key={r.label} className={r.ok ? "text-green-600" : "text-gray-500"}>
+          {r.ok ? "✓" : "○"} {r.label}
+        </li>
+      ))}
+    </ul>
+  );
+}
+
 export default function LoginPage() {
   const router = useRouter();
   const { user, loading: authLoading, login, register } = useAuth();
@@ -150,6 +167,7 @@ export default function LoginPage() {
                 </svg>
                 <input type="password" placeholder="Password" className="bg-neutral-300 bg-opacity-70 p-2 px-9 m-2 mb-2 text-black rounded-2xl w-72" onChange={(e) => setPassword2(e.target.value)} />
               </div>
+              <PasswordChecklist password={password2} />
               <button type="submit" className="bg-blue-500 hover:bg-blue-600 text-gray-100 fm-4 sm:mt-5 py-1.5 px-9 rounded-2xl text-m">
                 Sign up
               </button>

@@ -49,7 +49,7 @@ public class BoardsController : ControllerBase
 
         var board = await _db.Boards
             .Include(b => b.Members).ThenInclude(m => m.User)
-            .Include(b => b.Lists).ThenInclude(l => l.Cards)
+            .Include(b => b.Lists).ThenInclude(l => l.Cards.Where(c => !c.IsArchived))
             .FirstOrDefaultAsync(b => b.Id == id);
 
         if (board is null) return NotFound();

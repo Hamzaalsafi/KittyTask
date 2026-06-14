@@ -49,7 +49,7 @@ public class ListsController : ControllerBase
     [HttpPatch("lists/{id}")]
     public async Task<ActionResult<ListDto>> Update(string id, UpdateListDto dto)
     {
-        var list = await _db.Lists.Include(l => l.Cards).FirstOrDefaultAsync(l => l.Id == id);
+        var list = await _db.Lists.Include(l => l.Cards.Where(c => !c.IsArchived)).FirstOrDefaultAsync(l => l.Id == id);
         if (list is null) return NotFound();
         if (!await _access.IsMember(list.BoardId, UserId)) return Forbid();
 

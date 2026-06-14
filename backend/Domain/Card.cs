@@ -12,4 +12,8 @@ public class Card
 
     // 8 label toggles, stored as a PostgreSQL boolean[] column.
     public bool[] Labels { get; set; } = new bool[8];
+
+    // Archived cards are hidden from the board but kept for the archive view.
+    public bool IsArchived { get; set; }
+    public DateTime? ArchivedAt { get; set; }
 }

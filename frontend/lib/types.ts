@@ -39,6 +39,18 @@ export interface BoardDetail extends Board {
   lists: List[];
 }
 
+export interface ArchivedCard {
+  id: string;
+  title: string;
+  background: string;
+  labels: boolean[];
+  listId: string;
+  listTitle: string;
+  boardId: string;
+  boardTitle: string;
+  archivedAt: string | null;
+}
+
 export interface AuthResponse {
   token: string;
   user: User;

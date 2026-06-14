@@ -1,11 +1,14 @@
+using System.Linq;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using Microsoft.AspNetCore.Mvc;
 using KittyTask.Api.Data;
 using KittyTask.Api.Domain;
 using KittyTask.Api.Hubs;
 using KittyTask.Api.Services;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 
@@ -29,6 +32,14 @@ builder.Services.AddIdentityCore<ApplicationUser>(opt =>
 // ----- Auth (JWT) -----
 var jwtSecret = builder.Configuration["Jwt:Secret"]
     ?? "dev-only-insecure-secret-change-me-in-production-please-32+chars";
+
+// Refuse to start in production with a weak or default signing secret.
+if (builder.Environment.IsProduction() &&
+    (jwtSecret.Length < 32 || jwtSecret.StartsWith("dev-only")))
+{
+    throw new InvalidOperationException(
+        "Jwt:Secret must be set to a strong, non-default value (>= 32 chars) in production.");
+}
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
     {
@@ -64,6 +75,29 @@ builder.Services.AddControllers().AddJsonOptions(opt =>
 {
     opt.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter(JsonNamingPolicy.CamelCase));
 });
+
+// Return validation failures as a flat { message } the frontend can show directly.
+builder.Services.Configure<ApiBehaviorOptions>(options =>
+{
+    options.InvalidModelStateResponseFactory = context =>
+    {
+        var message = string.Join(" ", context.ModelState.Values
+            .SelectMany(v => v.Errors)
+            .Select(e => e.ErrorMessage)
+            .Where(m => !string.IsNullOrWhiteSpace(m)));
+        return new BadRequestObjectResult(new { message = string.IsNullOrWhiteSpace(message) ? "Invalid request." : message });
+    };
+});
+
+// Persist DataProtection keys when a path is configured (so they survive restarts).
+var keysPath = builder.Configuration["DataProtection:KeysPath"];
+if (!string.IsNullOrWhiteSpace(keysPath))
+{
+    Directory.CreateDirectory(keysPath);
+    builder.Services.AddDataProtection()
+        .PersistKeysToFileSystem(new DirectoryInfo(keysPath))
+        .SetApplicationName("KittyTask");
+}
 builder.Services.AddSignalR();
 builder.Services.AddOpenApi();
 
@@ -86,7 +120,19 @@ using (var scope = app.Services.CreateScope())
 }
 
 if (app.Environment.IsDevelopment())
+{
     app.MapOpenApi();
+}
+else
+{
+    // Return a consistent JSON error instead of leaking exception details.
+    app.UseExceptionHandler(handler => handler.Run(async context =>
+    {
+        context.Response.StatusCode = StatusCodes.Status500InternalServerError;
+        context.Response.ContentType = "application/json";
+        await context.Response.WriteAsJsonAsync(new { message = "An unexpected error occurred. Please try again." });
+    }));
+}
 
 app.UseCors();
 app.UseAuthentication();

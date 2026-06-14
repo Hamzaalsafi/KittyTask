@@ -28,10 +28,18 @@ const EVENTS: BoardEvent[] = [
 ];
 
 // Subscribes to realtime board updates over SignalR for the given board.
-export function useBoardRealtime(boardId: string | undefined, handlers: BoardEventHandlers) {
+// `onReconnect` fires after the connection drops and re-joins, so the caller
+// can refetch to catch any updates missed while offline.
+export function useBoardRealtime(
+  boardId: string | undefined,
+  handlers: BoardEventHandlers,
+  onReconnect?: () => void
+) {
   // Keep latest handlers in a ref so we don't reconnect on every render.
   const handlersRef = useRef(handlers);
   handlersRef.current = handlers;
+  const onReconnectRef = useRef(onReconnect);
+  onReconnectRef.current = onReconnect;
 
   useEffect(() => {
     if (!boardId) return;
@@ -49,7 +57,10 @@ export function useBoardRealtime(boardId: string | undefined, handlers: BoardEve
     }
 
     connection.onreconnected(() => {
-      connection.invoke("JoinBoard", boardId).catch(() => {});
+      connection
+        .invoke("JoinBoard", boardId)
+        .then(() => onReconnectRef.current?.())
+        .catch(() => {});
     });
 
     connection
