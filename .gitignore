@@ -7,10 +7,23 @@ yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
 
+# Node / Next.js
 node_modules
 dist
 dist-ssr
 *.local
+frontend/.next
+frontend/out
+frontend/next-env.d.ts
+
+# .NET
+backend/bin
+backend/obj
+
+# Env files
+.env
+.env.local
+.env*.local
 
 # Editor directories and files
 .vscode/*

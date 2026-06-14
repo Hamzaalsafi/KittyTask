@@ -1,0 +1,15 @@
+# Single entrypoint for the app. /api and /hubs go to the .NET backend
+# (WebSocket upgrades for SignalR are proxied automatically); everything else
+# goes to the Next.js frontend. This mirrors how the VPS reverse proxy should
+# route kittytask.hamzaalsafi.com.
+:80 {
+	handle /api/* {
+		reverse_proxy backend:8080
+	}
+	handle /hubs/* {
+		reverse_proxy backend:8080
+	}
+	handle {
+		reverse_proxy frontend:3000
+	}
+}
